@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Production Manager</title>
+<style>
+:root{
+  --bg:#f5f3ef; --card:#ffffff; --ink:#231a14; --sub:#7a6a5c; --line:#e7e0d6;
+  --accent:#b5651d; --accent-ink:#fff; --ok:#2e7d32; --warn:#e0972a; --bad:#c0392b;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#1c1712;--card:#2a231c;--ink:#f2ead f2;--ink:#f0e8df;--sub:#b7a999;--line:#3c332a;}
+}
+:root[data-theme="dark"]{--bg:#1c1712;--card:#2a231c;--ink:#f0e8df;--sub:#b7a999;--line:#3c332a;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;background:var(--accent);color:var(--accent-ink);z-index:5;box-shadow:0 2px 8px #0002}
+header h1{margin:0;font-size:18px}
+header p{margin:2px 0 0;font-size:12px;opacity:.85}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:4}
+nav button{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--ink);padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer}
+nav button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+main{padding:14px 12px 60px;max-width:900px;margin:0 auto}
+.view{display:none}.view.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:12px;color:var(--sub)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.b-ok{background:#2e7d3222;color:var(--ok)}.b-warn{background:#e0972a22;color:var(--warn)}.b-bad{background:#c0392b22;color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.scroll{overflow-x:auto}
+input,select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px;margin-top:3px}
+label{font-size:12px;color:var(--sub)}
+.row{display:flex;gap:8px;align-items:end;margin-bottom:8px;flex-wrap:wrap}
+.row>div{flex:1;min-width:110px}
+button.act{background:var(--accent);color:var(--accent-ink);border:none;padding:10px 16px;border-radius:10px;font-size:14px;cursor:pointer}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);padding:8px 12px;border-radius:10px;font-size:13px;cursor:pointer}
+.qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
+.qa button{padding:14px 8px;border-radius:12px}
+h3{margin:0 0 8px;font-size:15px}
+.muted{color:var(--sub);font-size:12px}
+.orderline{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.orderline select{flex:2}.orderline input{flex:1}
+.x{background:none;border:none;color:var(--bad);font-size:18px;cursor:pointer;padding:0 6px}
+.batch{border-left:3px solid var(--accent);padding-left:10px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🥯 Production Manager</h1>
+  <p id="todayLabel"></p>
+</header>
+<nav id="nav"></nav>
+<main>
+  <div class="view" id="v-dashboard"></div>
+  <div class="view" id="v-orders"></div>
+  <div class="view" id="v-production"></div>
+  <div class="view" id="v-stock"></div>
+  <div class="view" id="v-report"></div>
+  <div class="view" id="v-settings"></div>
+</main>
+<script>
+const PRODUCTS=[
+ {id:'nature',name:'Bagel Nature',weight:120,dough:'standard'},
+ {id:'cumin',name:'Bagel Cumin',weight:120,dough:'standard'},
+ {id:'curry',name:'Bagel Curry',weight:120,dough:'standard'},
+ {id:'emmental',name:'Bagel Emmental',weight:120,dough:'standard'},
+ {id:'sesame',name:'Bagel Sésame',weight:120,dough:'standard'},
+ {id:'grain',name:'Bagel Grain et Céréales',weight:120,dough:'standard'},
+ {id:'brioche',name:'Bagel Brioche',weight:120,dough:'brioche'},
+ {id:'choc_amande',name:'Bagel Chocolat Amande',weight:70,dough:'brioche'},
+ {id:'cinnamon',name:'Cinnamon Roll',weight:110,dough:'cinnamon'},
+];
+const DOUGHS={
+ standard:{name:'Pâte Bagel Standard',baseWeight:1645,ing:{Farine:1000,Eau:500,Sel:18,Levure:20,Sucre:75,Huile:30,Améliorant:2}},
+ brioche:{name:'Pâte Brioche',baseWeight:1777,ing:{Farine:1000,Eau:400,'Œufs':50,Levure:34,Améliorant:2,Sucre:70,Sel:20,Margarine:150,'Crème':50,Colorant:1}},
+ cinnamon:{name:'Pâte Cinnamon Roll',baseWeight:2037,ing:{Farine:1000,Eau:200,'Œufs':200,Sel:20,Sucre:130,'Poudre de lait':40,Levure:45,Beurre:200,Margarine:200,Améliorant:2},
+   filling:{baseWeight:876,ing:{Beurre:413,Sucre:413,Cannelle:50}}}
+};
+let state={orders:[],dailyReports:[],stock:{},settings:{safety:5,capacity:25000},waste:[]};
+let db=null;
+const STORAGE_KEY="production_manager_state_v1";
+async function initDb(){
+  try{
+    const saved=localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      const parsed=JSON.parse(saved);
+      state=Object.assign(
+        {orders:[],dailyReports:[],stock:{},settings:{safety:5,capacity:25000},waste:[]},
+        parsed
+      );
+    }
+  }catch(e){ console.error("local storage init",e); }
+}
+async function persist(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){ console.error("local storage persist",e); }
+  render(current);
+}
+
+function fmtKg(g){return (g/1000).toFixed(2)+' kg';}
+function prodQty(o){return o.qty+state.settings.safety;}
+
+function groupByDough(items){
+  const g={};
+  items.forEach(it=>{
+    const p=PRODUCTS.find(x=>x.id===it.productId); if(!p) return;
+    const pq=prodQty(it);
+    const w=pq*p.weight;
+    g[p.dough]=g[p.dough]||{items:[],weight:0};
+    g[p.dough].items.push({name:p.name,pq,weight:p.weight,total:w});
+    g[p.dough].weight+=w;
+  });
+  return g;
+}
+function splitBatches(totalWeight,capacity){
+  if(totalWeight<=0)return[];
+  const n=Math.ceil(totalWeight/capacity);
+  const size=totalWeight/n;
+  return Array.from({length:n},()=>size);
+}
+function scaleIng(ing,factor){
+  const r={}; for(const k in ing) r[k]=+(ing[k]*factor).toFixed(1); return r;
+}
+function computeProduction(items){
+  const groups=groupByDough(items);
+  const result=[];
+  for(const doughId in groups){
+    const dough=DOUGHS[doughId]; const grp=groups[doughId];
+    const batches=splitBatches(grp.weight,state.settings.capacity);
+    const doughBatches=batches.map((w,i)=>{
+      const factor=w/dough.baseWeight;
+      const out={n:i+1,weight:w,ing:scaleIng(dough.ing,factor)};
+      if(doughId==='cinnamon'){
+        const cinItem=grp.items.find(x=>x.name.includes('Cinnamon'));
+        if(cinItem){ const cf=(w/grp.weight)* (cinItem.total/dough.baseWeight); out.filling=scaleIng(dough.filling.ing,cf);}
+      }
+      return out;
+    });
+    result.push({doughId,doughName:dough.name,totalWeight:grp.weight,items:grp.items,batches:doughBatches});
+  }
+  return result;
+}
+
+// ---------- UI ----------
+const TABS=[['dashboard','Dashboard'],['orders','Commandes'],['production','Production'],['stock','Stock'],['report','Rapport'],['settings','Réglages']];
+let current='dashboard';
+function switchTo(t){current=t;render(t);}
+document.getElementById('nav').innerHTML=TABS.map(([id,label])=>`<button data-t="${id}">${label}</button>`).join('');
+document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;switchTo(b.dataset.t);});
+document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+function render(t){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-'+t).classList.add('on');
+  ({dashboard:renderDash,orders:renderOrders,production:renderProduction,stock:renderStock,report:renderReport,settings:renderSettings})[t]();
+}
+function renderAll(){render(current);}
+
+function renderDash(){
+  const today=new Date().toDateString();
+  const todays=state.orders.filter(o=>new Date(o.date).toDateString()===today);
+  const special=todays.filter(o=>o.type==='special');
+  const lowStock=Object.entries(state.stock).filter(([k,v])=>v.qty<=v.min);
+  const el=document.getElementById('v-dashboard');
+  el.innerHTML=`
+  <div class="grid">
+    <div class="card stat"><b>${todays.length}</b><span>Commandes aujourd'hui</span></div>
+    <div class="card stat"><b>${special.length}</b><span>Commandes spéciales</span></div>
+    <div class="card stat"><b>${state.dailyReports.length}</b><span>Rapports enregistrés</span></div>
+    <div class="card stat"><b style="color:${lowStock.length?'var(--bad)':'var(--ok)'}">${lowStock.length}</b><span>Alertes stock</span></div>
+  </div>
+  ${lowStock.length?`<div class="card"><h3>⚠️ Alertes stock (khass tchri)</h3>${lowStock.map(([k,v])=>`<div>${k} — ${v.qty}${v.unit} <span class="badge b-bad">Bas</span></div>`).join('')}</div>`:''}
+  <div class="card"><h3>Actions rapides</h3>
+    <div class="qa">
+      <button class="act" onclick="switchTo('orders')">Nouvelle commande</button>
+      <button class="act" onclick="switchTo('production')">Nouvelle production</button>
+      <button class="act" onclick="switchTo('report')">Rapport du jour</button>
+      <button class="act" onclick="switchTo('stock')">Stock</button>
+    </div>
+  </div>
+  <div class="card"><h3>Commandes du jour</h3>
+    <div class="scroll"><table><tr><th>Client</th><th>Produits</th><th>Type</th><th>Statut</th></tr>
+    ${todays.map(o=>`<tr><td>${o.client||'-'}</td><td>${o.items.map(i=>PRODUCTS.find(p=>p.id===i.productId)?.name+' x'+i.qty).join(', ')}</td><td>${o.type}</td><td>${o.status}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">Aucune commande</td></tr>'}
+    </table></div>
+  </div>`;
+}
+
+let draftItems=[{productId:PRODUCTS[0].id,qty:''}];
+function renderOrders(){
+  const el=document.getElementById('v-orders');
+  el.innerHTML=`
+  <div class="card"><h3>Nouvelle commande</h3>
+    <div class="row">
+      <div><label>Client / département</label><input id="cl" placeholder="Ex: Café Central"></div>
+      <div><label>Type</label><select id="ty"><option value="normal">Normal</option><option value="special">Spéciale</option></select></div>
+      <div><label>Heure de livraison</label><input id="dt" type="time"></div>
+    </div>
+    <div id="lines"></div>
+    <button class="ghost" onclick="addLine()">+ Ajouter un produit</button>
+    <div style="margin-top:10px"><label>Notes</label><input id="nt"></div>
+    <button class="act" style="margin-top:10px" onclick="saveOrder()">Enregistrer la commande</button>
+  </div>
+  <div class="card"><h3>Toutes les commandes</h3>
+  <div class="scroll"><table><tr><th>Date</th><th>Client</th><th>Produits</th><th>Statut</th><th></th></tr>
+  ${state.orders.slice().reverse().map(o=>`<tr><td>${new Date(o.date).toLocaleDateString('fr-FR')}</td><td>${o.client||'-'}</td><td>${o.items.map(i=>PRODUCTS.find(p=>p.id===i.productId)?.name+' x'+i.qty).join(', ')}</td>
+  <td><select onchange="setStatus('${o.id}',this.value)">${['New','Confirmed','In production','Ready','Delivered','Cancelled'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+  <td><button class="ghost" onclick="calcFor('${o.id}')">Calculer</button></td></tr>`).join('')||'<tr><td colspan=5 class="muted">Aucune commande</td></tr>'}
+  </table></div></div>`;
+  renderLines();
+}
+function renderLines(){
+  document.getElementById('lines').innerHTML=draftItems.map((it,i)=>`
+    <div class="orderline">
+      <select onchange="draftItems[${i}].productId=this.value">${PRODUCTS.map(p=>`<option value="${p.id}" ${p.id===it.productId?'selected':''}>${p.name}</option>`).join('')}</select>
+      <input type="number" min="0" placeholder="Qté" value="${it.qty}" oninput="draftItems[${i}].qty=this.value">
+      <button class="x" onclick="removeLine(${i})">×</button>
+    </div>`).join('');
+}
+function addLine(){draftItems.push({productId:PRODUCTS[0].id,qty:''});renderLines();}
+function removeLine(i){draftItems.splice(i,1);if(!draftItems.length)draftItems=[{productId:PRODUCTS[0].id,qty:''}];renderLines();}
+function saveOrder(){
+  const items=draftItems.filter(i=>+i.qty>0).map(i=>({productId:i.productId,qty:+i.qty}));
+  if(!items.length){alert('Ajoutez au moins un produit avec une quantité.');return;}
+  const order={id:'o'+Date.now(),date:new Date().toISOString(),client:document.getElementById('cl').value,
+    type:document.getElementById('ty').value,deliveryTime:document.getElementById('dt').value,
+    notes:document.getElementById('nt').value,status:'New',items};
+  state.orders.push(order); draftItems=[{productId:PRODUCTS[0].id,qty:''}];
+  persist();
+}
+function setStatus(id,val){const o=state.orders.find(x=>x.id===id);if(o){o.status=val;persist();}}
+let lastCalc=null;
+function calcFor(id){const o=state.orders.find(x=>x.id===id);if(!o)return;lastCalc=computeProduction(o.items);switchTo('production');}
+
+function renderProduction(){
+  const el=document.getElementById('v-production');
+  if(!lastCalc){
+    // default: calc across all non-delivered/cancelled orders of today
+    const today=new Date().toDateString();
+    const items=state.orders.filter(o=>new Date(o.date).toDateString()===today && o.status!=='Cancelled').flatMap(o=>o.items);
+    lastCalc=items.length?computeProduction(items):[];
+  }
+  el.innerHTML=`<div class="card"><h3>Calcul de production (+${state.settings.safety} sécurité / pièce)</h3>
+  <p class="muted">Groupé par pâte. Capacité mélangeur: ${fmtKg(state.settings.capacity)}. Cliquez "Calculer" sur une commande pour recalculer.</p></div>
+  ${lastCalc.length?lastCalc.map(g=>`
+    <div class="card">
+      <h3>${g.doughName} — total ${fmtKg(g.totalWeight)}</h3>
+      <div class="scroll"><table><tr><th>Produit</th><th>Qté prod.</th><th>Poids/pce</th><th>Total</th></tr>
+      ${g.items.map(i=>`<tr><td>${i.name}</td><td>${i.pq}</td><td>${i.weight}g</td><td>${fmtKg(i.total)}</td></tr>`).join('')}
+      </table></div>
+      ${g.batches.map(b=>`<div class="batch"><b>Fournée ${b.n}</b> — ${fmtKg(b.weight)}
+        <div class="scroll"><table>${Object.entries(b.ing).map(([k,v])=>`<tr><td>${k}</td><td>${v} g</td></tr>`).join('')}</table></div>
+        ${b.filling?`<div class="muted">Garniture cannelle: ${Object.entries(b.filling).map(([k,v])=>k+': '+v+'g').join(', ')}</div>`:''}
+      </div>`).join('')}
+    </div>`).join(''):'<div class="card muted">Aucune commande à produire aujourd\'hui.</div>'}
+  <button class="act" onclick="confirmProduction()">Confirmer production (déduire du stock)</button>`;
+}
+function confirmProduction(){
+  if(!lastCalc||!lastCalc.length){alert('Rien à confirmer.');return;}
+  lastCalc.forEach(g=>g.batches.forEach(b=>{
+    for(const k in b.ing){
+      state.stock[k]=state.stock[k]||{qty:0,min:0,unit:'g'};
+      state.stock[k].qty=+(state.stock[k].qty-b.ing[k]).toFixed(1);
+    }
+  }));
+  persist(); alert('Stock mis à jour.');
+}
+
+function renderStock(){
+  const el=document.getElementById('v-stock');
+  const keys=Object.keys(state.stock);
+  el.innerHTML=`<div class="card"><h3>Ajouter / ajuster un ingrédient</h3>
+  <div class="row"><div><label>Nom</label><input id="sn"></div><div><label>Qté</label><input id="sq" type="number"></div>
+  <div><label>Unité</label><input id="su" value="g"></div><div><label>Stock min</label><input id="sm" type="number"></div></div>
+  <button class="act" onclick="upsertStock()">Enregistrer</button></div>
+  <div class="card"><h3>Stock actuel</h3><div class="scroll"><table><tr><th>Ingrédient</th><th>Qté</th><th>Min</th><th>Statut</th></tr>
+  ${keys.map(k=>{const v=state.stock[k];const status=v.qty<=0?['🔴 Rupture','b-bad']:(v.qty<=v.min?['🟠 Bas','b-warn']:['🟢 OK','b-ok']);
+    return `<tr><td>${k}</td><td>${v.qty} ${v.unit}</td><td>${v.min}</td><td><span class="badge ${status[1]}">${status[0]}</span></td></tr>`;}).join('')||'<tr><td colspan=4 class="muted">Aucun ingrédient</td></tr>'}
+  </table></div></div>
+  <div class="card"><h3>Liste d'achats (à commander)</h3>
+  ${keys.filter(k=>state.stock[k].qty<state.stock[k].min).map(k=>`<div>${k}: acheter ${(state.stock[k].min-state.stock[k].qty).toFixed(1)} ${state.stock[k].unit}</div>`).join('')||'<div class="muted">Rien à acheter.</div>'}</div>`;
+}
+function upsertStock(){
+  const n=document.getElementById('sn').value.trim(); if(!n)return;
+  state.stock[n]={qty:+document.getElementById('sq').value||0,unit:document.getElementById('su').value||'g',min:+document.getElementById('sm').value||0};
+  persist();
+}
+
+function renderReport(){
+  const el=document.getElementById('v-report');
+  el.innerHTML=`<div class="card"><h3>Clôturer le rapport du jour</h3>
+  <div id="repLines">${PRODUCTS.map(p=>`
+    <div class="row"><div style="flex:2"><b>${p.name}</b></div>
+    <div><label>Réel</label><input type="number" id="rr_${p.id}"></div>
+    <div><label>Livré</label><input type="number" id="rl_${p.id}"></div>
+    <div><label>Pertes</label><input type="number" id="rp_${p.id}"></div>
+    <div><label>À refaire</label><input type="number" id="ra_${p.id}"></div>
+    </div>`).join('')}</div>
+  <button class="act" onclick="closeReport()">Enregistrer le rapport (permanent)</button></div>
+  <div class="card"><h3>Historique des rapports</h3>
+  ${state.dailyReports.slice().reverse().map(r=>`<div class="muted">${new Date(r.date).toLocaleDateString('fr-FR')} — ${r.lines.filter(l=>l.perte||l.refaire).map(l=>l.name+' (pertes:'+l.perte+', refaire:'+l.refaire+')').join('; ')||'RAS'}</div>`).join('')||'<div class="muted">Aucun rapport</div>'}
+  </div>`;
+}
+function closeReport(){
+  const lines=PRODUCTS.map(p=>({name:p.name,reel:+document.getElementById('rr_'+p.id).value||0,livre:+document.getElementById('rl_'+p.id).value||0,
+    perte:+document.getElementById('rp_'+p.id).value||0,refaire:+document.getElementById('ra_'+p.id).value||0}));
+  state.dailyReports.push({date:new Date().toISOString(),lines});
+  persist(); alert('Rapport enregistré définitivement.');
+}
+
+function renderSettings(){
+  const el=document.getElementById('v-settings');
+  el.innerHTML=`<div class="card"><h3>Réglages</h3>
+  <label>Quantité de sécurité par défaut (+X pièces)</label><input type="number" id="stSafety" value="${state.settings.safety}">
+  <label style="margin-top:10px;display:block">Capacité mélangeur (kg)</label><input type="number" id="stCap" value="${state.settings.capacity/1000}">
+  <button class="act" style="margin-top:10px" onclick="saveSettings()">Enregistrer</button></div>
+  <div class="card muted">V1 : dashboard, commandes, moteur de calcul (+sécurité, regroupement par pâte, répartition en fournées ≤ capacité), stock, liste d'achats, rapport quotidien permanent.<br>À venir : planning hebdomadaire, rôles/permissions, historique détaillé des mouvements, assistant IA, export CSV/PDF.</div>`;
+}
+function saveSettings(){
+  state.settings.safety=+document.getElementById('stSafety').value||5;
+  state.settings.capacity=(+document.getElementById('stCap').value||25)*1000;
+  persist();
+}
+
+initDb().then(()=>render(current));
+render(current);
+</script>
+</body>
+</html>
