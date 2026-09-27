@@ -63,7 +63,7 @@ footer.dev b{color:var(--ink)}
 <body>
 <header>
   <div class="htitle"><h1>🥯 Production Manager</h1><p id="todayLabel"></p></div>
-  <div style="font-size:12px">Ismail Zarouali</div>
+  <div style="font-size:12px; font-weight:600;">Ismail Zarouali</div>
 </header>
 <nav id="nav"></nav>
 <main>
@@ -148,9 +148,23 @@ function computeProduction(items){
 
 const TABS=[['dashboard','Dashboard'],['orders','Commandes'],['production','Production'],['stock','Stock'],['report','Rapport'],['settings','Réglages']];
 let current='dashboard';
-function switchTo(t){current=t;render(t);}
-document.getElementById('nav').innerHTML=TABS.map(([id,label])=>`<button data-t="${id}">${label}</button>`).join('');
-document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;switchTo(b.dataset.t);});
+
+function initNav(){
+  const navEl = document.getElementById('nav');
+  if(!navEl) return;
+  navEl.innerHTML=TABS.map(([id,label])=>`<button data-t="${id}">${label}</button>`).join('');
+  navEl.addEventListener('click',e=>{
+    const b=e.target.closest('button');
+    if(!b)return;
+    switchTo(b.dataset.t);
+  });
+}
+
+function switchTo(t){
+  current=t;
+  render(t);
+}
+
 document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
 function render(t){
@@ -350,7 +364,9 @@ function saveSettings(){
   persist();
 }
 
+// تشغيل التطبيق فوراً
 loadLocal();
+initNav();
 render(current);
 </script>
 </body>
