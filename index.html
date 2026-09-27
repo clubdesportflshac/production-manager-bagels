@@ -63,7 +63,7 @@ footer.dev b{color:var(--ink)}
 <body>
 <header>
   <div class="htitle"><h1>🥯 Production Manager</h1><p id="todayLabel"></p></div>
-  <div style="font-size:12px; font-weight:600;">Ismail Zarouali</div>
+  <div style="font-size:12px;font-weight:600;">Ismail Zarouali</div>
 </header>
 <nav id="nav"></nav>
 <main>
@@ -75,7 +75,6 @@ footer.dev b{color:var(--ink)}
   <div class="view" id="v-settings"></div>
   <footer class="dev">Développé par <b>Ismail Zarouali</b></footer>
 </main>
-
 <script>
 const PRODUCTS=[
  {id:'nature',name:'Bagel Nature',weight:120,dough:'standard'},
@@ -97,7 +96,7 @@ const DOUGHS={
 let state={orders:[],dailyReports:[],stock:{},settings:{safety:5,capacity:25000},waste:[]};
 
 function persist(){
-  localStorage.setItem('pm_state', JSON.stringify(state));
+  try{ localStorage.setItem('pm_state', JSON.stringify(state)); }catch(e){}
   render(current);
 }
 
@@ -148,31 +147,24 @@ function computeProduction(items){
 
 const TABS=[['dashboard','Dashboard'],['orders','Commandes'],['production','Production'],['stock','Stock'],['report','Rapport'],['settings','Réglages']];
 let current='dashboard';
+function switchTo(t){current=t;render(t);}
 
-function initNav(){
-  const navEl = document.getElementById('nav');
-  if(!navEl) return;
+const navEl = document.getElementById('nav');
+if(navEl){
   navEl.innerHTML=TABS.map(([id,label])=>`<button data-t="${id}">${label}</button>`).join('');
-  navEl.addEventListener('click',e=>{
-    const b=e.target.closest('button');
-    if(!b)return;
-    switchTo(b.dataset.t);
-  });
+  navEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;switchTo(b.dataset.t);});
 }
-
-function switchTo(t){
-  current=t;
-  render(t);
+const dateEl = document.getElementById('todayLabel');
+if(dateEl){
+  dateEl.textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 }
-
-document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
 function render(t){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
-  const targetView = document.getElementById('v-'+t);
-  if(targetView) targetView.classList.add('on');
-  const fns = {dashboard:renderDash, orders:renderOrders, production:renderProduction, stock:renderStock, report:renderReport, settings:renderSettings};
+  const target = document.getElementById('v-'+t);
+  if(target) target.classList.add('on');
+  const fns={dashboard:renderDash,orders:renderOrders,production:renderProduction,stock:renderStock,report:renderReport,settings:renderSettings};
   if(fns[t]) fns[t]();
 }
 
@@ -182,7 +174,7 @@ function renderDash(){
   const special=todays.filter(o=>o.type==='special');
   const lowStock=Object.entries(state.stock).filter(([k,v])=>v.qty<=v.min);
   const el=document.getElementById('v-dashboard');
-  if(!el) return;
+  if(!el)return;
   el.innerHTML=`
   <div class="grid">
     <div class="card stat"><b>${todays.length}</b><span>Commandes aujourd'hui</span></div>
@@ -210,7 +202,7 @@ let draftItems=[{productId:PRODUCTS[0].id,qty:''}];
 let editingOrderId=null;
 function renderOrders(){
   const el=document.getElementById('v-orders');
-  if(!el) return;
+  if(!el)return;
   el.innerHTML=`
   <div class="card"><h3>${editingOrderId?'Modifier la commande':'Nouvelle commande'}</h3>
     <div class="row">
@@ -239,8 +231,8 @@ function renderOrders(){
   }
 }
 function renderLines(){
-  const container = document.getElementById('lines');
-  if(!container) return;
+  const container=document.getElementById('lines');
+  if(!container)return;
   container.innerHTML=draftItems.map((it,i)=>`
     <div class="orderline">
       <select onchange="draftItems[${i}].productId=this.value">${PRODUCTS.map(p=>`<option value="${p.id}" ${p.id===it.productId?'selected':''}>${p.name}</option>`).join('')}</select>
@@ -274,7 +266,7 @@ function calcFor(id){const o=state.orders.find(x=>x.id===id);if(!o)return;lastCa
 
 function renderProduction(){
   const el=document.getElementById('v-production');
-  if(!el) return;
+  if(!el)return;
   if(!lastCalc){
     const today=new Date().toDateString();
     const items=state.orders.filter(o=>new Date(o.date).toDateString()===today && o.status!=='Cancelled').flatMap(o=>o.items);
@@ -305,7 +297,7 @@ function confirmProduction(){
 
 function renderStock(){
   const el=document.getElementById('v-stock');
-  if(!el) return;
+  if(!el)return;
   const keys=Object.keys(state.stock);
   el.innerHTML=`<div class="card"><h3>Ajouter / ajuster un ingrédient</h3>
   <div class="row"><div><label>Nom</label><input id="sn"></div><div><label>Qté</label><input id="sq" type="number"></div>
@@ -327,7 +319,7 @@ function deleteStock(k){ if(!confirm('Supprimer '+k+' du stock ?'))return; delet
 
 function renderReport(){
   const el=document.getElementById('v-report');
-  if(!el) return;
+  if(!el)return;
   el.innerHTML=`<div class="card"><h3>Clôturer le rapport du jour</h3>
   <div id="repLines">${PRODUCTS.map(p=>`
     <div class="row"><div style="flex:2"><b>${p.name}</b></div>
@@ -351,7 +343,7 @@ function deleteReport(idx){ if(!confirm('Supprimer ce rapport ?'))return; state.
 
 function renderSettings(){
   const el=document.getElementById('v-settings');
-  if(!el) return;
+  if(!el)return;
   el.innerHTML=`<div class="card"><h3>Réglages</h3>
   <label>Quantité de sécurité par défaut (+X pièces)</label><input type="number" id="stSafety" value="${state.settings.safety}">
   <label style="margin-top:10px;display:block">Capacité mélangeur (kg)</label><input type="number" id="stCap" value="${state.settings.capacity/1000}">
@@ -364,10 +356,9 @@ function saveSettings(){
   persist();
 }
 
-// تشغيل التطبيق فوراً
 loadLocal();
-initNav();
 render(current);
 </script>
 </body>
+</html>
 </html>
